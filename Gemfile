@@ -48,3 +48,7 @@ gem "listen", require: false
 
 # Manage environment specific settings
 gem "config"
+
+# .gitignore rules compatible implementation for fast ignoring unwilling files
+# Original: https://github.com/robotdana/fast_ignore/tree/dev
+gem "path_list", path: "vendor/gems/path_list"

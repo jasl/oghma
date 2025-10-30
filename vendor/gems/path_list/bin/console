@@ -1,0 +1,7 @@
+#!/usr/bin/env -S ruby --disable-all
+# frozen_string_literal: true
+
+require_relative '../lib/path_list'
+
+require 'irb'
+IRB.start

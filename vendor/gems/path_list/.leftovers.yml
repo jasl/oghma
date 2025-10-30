@@ -1,0 +1,28 @@
+exclude_paths:
+  - vendor
+  - bin/benchmark
+keep:
+  ## public api
+  - PathList
+
+  # query
+  - include?
+  - member?
+  - match?
+  - each
+  - ===
+  - to_proc
+
+  # build
+  - gitignore
+  - ignore
+  - only
+  - union
+  - intersection
+  - '&'
+  - '|'
+  - all
+  - any
+
+  # rspec
+  - supports_block_expectations?

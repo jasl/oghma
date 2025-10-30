@@ -1,0 +1,723 @@
+#!/usr/bin/env ruby
+
+# frozen_string_literal: true
+
+require 'bundler/setup'
+require 'benchmark/ips'
+require 'tempfile'
+require 'stringio'
+
+# from benchmark/ips readme
+class GCSuite
+  def warming(*) # leftovers:allow
+    run_gc
+  end
+
+  def running(*) # leftovers:allow
+    run_gc
+  end
+
+  def warmup_stats(*); end # leftovers:allow
+
+  def add_report(*); end # leftovers:allow
+
+  private
+
+  def run_gc
+    GC.enable
+    GC.start
+    GC.disable
+  end
+end
+
+GC.disable
+
+config = { suite: GCSuite.new }
+
+def benchmark(label)
+  return unless ARGV.empty? || ARGV.include?(label)
+
+  puts "\n#{label}:"
+
+  yield
+  puts ''
+end
+
+benchmark('any-dir') do
+  Benchmark.ips do |x|
+    x.config(config)
+    @any_q_re = /\Aa(?:.*\/)?z\z/
+    @any_non_dir_dir_re = /\Aa(?:[^\/]*\/)*z\z/
+    @non_greedy_any_q_re = /\Aa(?:.*?\/)??z\z/
+    @non_greedy_any_non_dir_dir_re = /\Aa(?:[^\/]*?\/)*?z\z/
+    @non_greedy_outer_any_q_re = /\Aa(?:.*\/)??z\z/
+    @non_greedy_outer_any_non_dir_dir_re = /\Aa(?:[^\/]*\/)*?z\z/
+    @non_greedy_inner_any_q_re = /\Aa(?:.*?\/)?z\z/
+    @non_greedy_inner_any_non_dir_dir_re = /\Aa(?:[^\/]*?\/)*z\z/
+
+    @string_hit = "abcd/efgh/ijkl/mnop/qrst/uvwx/y/z" # spellr:disable-line
+    @string_miss_end = "abcd/efgh/ijkl/mnop/qrst/uvwx/y" # spellr:disable-line
+
+    x.report(:hit_any_q_re) { @any_q_re.match?(@string_hit) }
+    x.report(:hit_any_non_dir_dir_re) { @any_non_dir_dir_re.match?(@string_hit) }
+    x.report(:hit_non_greedy_any_q_re) { @non_greedy_any_q_re.match?(@string_hit) }
+    x.report(:hit_non_greedy_any_non_dir_dir_re) { @non_greedy_any_non_dir_dir_re.match?(@string_hit) }
+    x.report(:hit_non_greedy_outer_any_q_re) { @non_greedy_outer_any_q_re.match?(@string_hit) }
+    x.report(:hit_non_greedy_outer_any_non_dir_dir_re) { @non_greedy_outer_any_non_dir_dir_re.match?(@string_hit) }
+    x.report(:hit_non_greedy_inner_any_q_re) { @non_greedy_inner_any_q_re.match?(@string_hit) }
+    x.report(:hit_non_greedy_inner_any_non_dir_dir_re) { @non_greedy_inner_any_non_dir_dir_re.match?(@string_hit) }
+
+    x.report(:miss_end_any_q_re) { @any_q_re.match?(@string_miss_end) }
+    x.report(:miss_end_any_non_dir_dir_re) { @any_non_dir_dir_re.match?(@string_miss_end) }
+    x.report(:miss_end_non_greedy_any_q_re) { @non_greedy_any_q_re.match?(@string_miss_end) }
+    x.report(:miss_end_non_greedy_any_non_dir_dir_re) { @non_greedy_any_non_dir_dir_re.match?(@string_miss_end) }
+    x.report(:miss_end_non_greedy_outer_any_q_re) { @non_greedy_outer_any_q_re.match?(@string_miss_end) }
+    x.report(:miss_end_non_greedy_outer_any_non_dir_dir_re) { @non_greedy_outer_any_non_dir_dir_re.match?(@string_miss_end) }
+    x.report(:miss_end_non_greedy_inner_any_q_re) { @non_greedy_inner_any_q_re.match?(@string_miss_end) }
+    x.report(:miss_end_non_greedy_inner_any_non_dir_dir_re) { @non_greedy_inner_any_non_dir_dir_re.match?(@string_miss_end) }
+
+    x.compare!
+  end
+end
+
+benchmark('or-or-any') do
+  Benchmark.ips do |x|
+    x.config(config)
+    @miss_array = [nil, nil]
+    @second_array = [nil, 1]
+    @first_array = [1, nil]
+    @miss = nil
+    @hit = 1
+
+    x.report(:any_first) { @first_array.any? { |x| x } }
+    x.report(:any_second) { @second_array.any? { |x| x } }
+    x.report(:any_none) { @miss_array.any? { |x| x } }
+    x.report(:or_first) { @hit || @miss }
+    x.report(:or_second) { @miss || @hit }
+    x.report(:or_none) { @miss || @miss }
+    x.compare!
+  end
+end
+
+
+benchmark('bang-bang') do
+  Benchmark.ips do |x|
+    x.config(config)
+    x.report(:nil_bang_nil, '!nil.nil?')
+    x.report(:nil_bang_bang, '!!nil')
+    x.report(:nil_ternary, 'nil ? true : false')
+    x.report(:truthy_ref_bang_nil, '![].nil?')
+    x.report(:truthy_ref_bang_bang, '!![]')
+    x.report(:truthy_ref_ternary, '[] ? true : false')
+    x.report(:truthy_bang_nil, '!1.nil?')
+    x.report(:truthy_bang_bang, '!!1')
+    x.report(:truthy_ternary, '1 ? true : false')
+    x.report(:true_bang_nil, '!true.nil?')
+    x.report(:true_bang_bang, '!!true')
+    x.report(:true_ternary, 'true ? true : false')
+    x.report(:false_bang_nil, '!false.nil?')
+    x.report(:false_bang_bang, '!!false')
+    x.report(:false_ternary, 'false ? true : false')
+    x.compare!
+  end
+end
+
+benchmark('nil-not-false') do
+  Benchmark.ips do |x|
+    x.config(config)
+    x.report(:nil_nil, 'nil.nil?')
+    x.report(:nil_eq_false, 'nil || false == nil')
+    x.report(:true_nil, 'true.nil?')
+    x.report(:true_eq_false, 'true || false == true')
+    x.report(:false_nil, 'false.nil?')
+    x.report(:false_eq_false, 'false || false == false')
+    x.report(:truthy_nil, '1.nil?')
+    x.report(:truthy_eq_false, '1 || false == 1')
+    x.report(:truthy_ref_nil, '[].nil?')
+    x.report(:truthy_ref_eq_false, '[] || false == []')
+    x.compare!
+  end
+end
+
+benchmark('hash-merge') do
+  Benchmark.ips do |x|
+    x.config(config)
+    @hash = {}
+
+    def merge_2(hash, other_hash)
+      hash.merge(other_hash) do |_, left, right|
+        if left || right
+          merge_2(left || { nil => nil }, right || { nil => nil })
+        end
+      end
+    end
+
+    def merge_2b(hash, other_hash)
+      hash.merge(other_hash) do |_, left, right|
+        if left && right
+          merge_2b(left, right)
+        elsif left || right
+          merge_2b(left || { nil => nil }, right || { nil => nil })
+        end
+      end
+    end
+
+    @hash1 = {
+      'b' => { dir: nil },
+      'bb' => { dir: nil },
+      :any_dir => {
+        'a' => { dir: nil },
+        'd' => { dir: nil },
+        'e' => { dir: nil }
+      }
+    }
+
+    @hash2 = { any_dir: { 'd' => { end_anchor: nil }, 'e' => nil } }
+
+
+    x.report(:merge_2) { merge_2(@hash1, @hash2) }
+    x.report(:merge_2b) { merge_2b(@hash1, @hash2) }
+    x.compare!
+  end
+end
+
+benchmark('is_a_hash_nil') do
+  Benchmark.ips do |x|
+    x.config(config)
+    @array = (0..1000).to_a
+
+    x.report(:each) { @array.each { |x| x } }
+    x.report(:reverse_each) { @array.reverse_each { |x| x } }
+    x.report(:'each.each') { @array.each.each { |x| x } }
+    x.compare!
+  end
+end
+
+benchmark('enumerate-array-proc') do
+  Benchmark.ips do |x|
+    x.config(config)
+    @array = (0..1000).to_a
+
+    x.report(:each) { @array.each(&:itself) }
+    x.report(:reverse_each) { @array.reverse_each(&:itself) }
+    x.report(:'each.each') { @array.each.each(&:itself) }
+    x.compare!
+  end
+end
+
+benchmark('array-index-offset') do
+  Benchmark.ips do |x|
+    x.config(config)
+    @array = (0..1000).to_a
+
+    x.report(:small_index_zero_offset_no_drop) { @array.index(3) }
+    x.report(:small_index_zero_offset_drop) { @array.drop(0).index(3) }
+    x.report(:small_index_zero_offset_with_index) { @array.index.with_index { |item, index| index > 0 && item == 3 } }
+
+    x.report(:large_index_zero_offset_no_drop) { @array.index(900) }
+    x.report(:large_index_zero_offset_drop) { @array.drop(0).index(900) }
+    x.report(:large_index_zero_offset_with_index) { @array.index.with_index { |item, index| index > 0 && item == 900 } }
+
+    x.report(:small_index_small_offset_drop) { @array.drop(2).index(3) + 2 }
+    x.report(:small_index_small_offset_with_index) { @array.index.with_index { |item, index| index > 2 && item == 3 } }
+
+    x.report(:large_index_small_offset_drop) { @array.drop(2).index(990) + 2 }
+    x.report(:large_index_small_offset_with_index) { @array.index.with_index { |item, index| index > 2 && item == 990 } }
+
+    x.report(:large_index_large_offset_drop) { @array.drop(900).index(990) + 900 }
+    x.report(:large_index_large_offset_with_index) { @array.index.with_index { |item, index| index > 900 && item == 990 } }
+    x.compare!
+  end
+end
+
+
+benchmark('bsearch-or-include') do
+  Benchmark.ips do |x|
+    x.config(config)
+    require_relative '../lib/path_list'
+    require 'set'
+
+    @array = ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'..'aaaaaaaaaaaaaaaaaaaaaaaaaaazzz').to_a[0..4000]
+    @set = @array.to_set
+    # @re  = PathList::RegexpBuilder.new({ start_anchor: PathList::RegexpBuilder::Merge.merge(@array.map { |item| item.split('').reverse_each.reduce({ end_anchor: nil }) { |a, e| { e => a } } })}).to_regexp
+    # @reB = PathList::RegexpBuilder.new({ start_anchor: PathList::RegexpBuilder::Merge.merge(@array.map { |item| item.split('').reverse_each.reduce({ end_anchor: nil }) { |a, e| { e => a } } })}).to_regexp_b
+    #   puts @re
+    # puts @reB
+    x.report(:bsearch_hit) { @array.each { |target| target += ''; @array.bsearch {|e| target <=> e } } }
+    x.report(:bsearch_miss) { @array.each { |target| target += '1'; @array.bsearch {|e| target <=> e } } }
+
+    x.report(:include_hit) { @array.each { |target| target += ''; @array.include?(target) } }
+    x.report(:include_miss) { @array.each { |target| target += '1'; @array.include?(target) } }
+
+    x.report(:set_include_hit) { @set.each { |target| target += ''; @set.include?(target) } }
+    x.report(:set_include_miss) { @set.each { |target| target += '1'; @set.include?(target) } }
+    # x.report(:reB_hit) { @array.each { |target| target += ''; @reB.match?(target) } }
+#     x.report(:reB_miss) { @array.each { |target| target += '1'; @reB.match?(target) } }
+
+    # x.report(:re_hit) { @array.each { |target| target += ''; @re.match?(target) } }
+    # x.report(:re_miss) { @array.each { |target| target += '1'; @re.match?(target) } }
+
+    x.compare!
+  end
+end
+
+benchmark('add-trailing-slash') do
+  Benchmark.ips do |x|
+    x.config(config)
+    @string_slash = '/'
+    @string_trailing_slash = 'D:/'
+    @string_no_trailing_slash = '/bin'
+
+    raise unless "/str" == (@string_slash.end_with?('/') ? @string_slash : "#{@string_slash}/") + "str"
+    raise unless "D:/str" == (@string_trailing_slash.end_with?('/') ? @string_trailing_slash : "#{@string_trailing_slash}/") + "str"
+    raise unless "/bin/str" == (@string_no_trailing_slash.end_with?('/') ? @string_no_trailing_slash : "#{@string_no_trailing_slash}/") + "str"
+    raise unless "/str" == ::File.join(@string_slash, "str")
+    raise unless "D:/str" == ::File.join(@string_trailing_slash, "str")
+    raise unless "/bin/str" == ::File.join(@string_no_trailing_slash, "str")
+    raise unless "/str" == @string_slash.sub(/(?<!\/)\z/, '/') + "str"
+    raise unless "D:/str" == @string_trailing_slash.sub(/(?<!\/)\z/, '/') + "str"
+    raise unless "/bin/str" == @string_no_trailing_slash.sub(/(?<!\/)\z/, '/') + "str"
+
+    x.report(:string_slash_end_with) { (@string_slash.end_with?('/') ? @string_slash : "#{@string_slash}/") + "str" }
+    x.report(:string_trailing_slash_end_with) { (@string_trailing_slash.end_with?('/') ? @string_trailing_slash : "#{@string_trailing_slash}/") + "str" }
+    x.report(:string_no_trailing_slash_end_with) { (@string_no_trailing_slash.end_with?('/') ? @string_no_trailing_slash : "#{@string_no_trailing_slash}/") + "str" }
+
+    x.report(:string_slash_file_join) { ::File.join(@string_slash, "str") }
+    x.report(:string_trailing_slash_file_join) { ::File.join(@string_trailing_slash, "str") }
+    x.report(:string_no_trailing_slash_file_join) { ::File.join(@string_no_trailing_slash, "str") }
+
+    x.report(:string_slash_sub) { @string_slash.sub(/(?<!\/)\z/, '/') + "str" }
+    x.report(:string_trailing_slash_sub) { @string_trailing_slash.sub(/(?<!\/)\z/, '/') + "str" }
+    x.report(:string_no_trailing_slash_sub) { @string_no_trailing_slash.sub(/(?<!\/)\z/, '/') + "str" }
+
+    x.compare!
+  end
+end
+
+benchmark('one-element-hash') do
+  Benchmark.ips do |x|
+    x.config(config)
+    @hash = { 'a' => 'b' }
+    x.report(:first) { key, value = @hash.first }
+    x.report(:each_key_first) { key = @hash.each_key.first; value = @hash[key] }
+    x.report(:keys_first) { key = @hash.keys.first; value = @hash[key] }
+    x.report(:map) { @hash.map { |key, value| next key, value } }
+
+    x.compare!
+  end
+end
+
+benchmark('casecmp-downcase') do
+  Benchmark.ips do |x|
+    x.config(config)
+    @string = "PathList::Matcher::CollectGitignore#file_matcher"
+    @string_downcase = "pathlist::matchers::collectgitignore#file_matcher"
+    x.report(:casecmp_2) { string = @string; 2.times { (string <=> @string_downcase).zero? } }
+    x.report(:downcase_equal_2) { string = @string.downcase; 2.times { string == @string_downcase } }
+
+    x.report(:casecmp_5) { string = @string; 5.times { (string <=> @string_downcase).zero? } }
+    x.report(:downcase_equal_5) { string = @string.downcase; 5.times { string == @string_downcase } }
+
+    x.report(:casecmp_10) { string = @string; 10.times { (string <=> @string_downcase).zero? } }
+    x.report(:downcase_equal_10) { string = @string.downcase; 10.times { string == @string_downcase } }
+
+    # x.report(:casecmp_20) { string = @string; 20.times { (string <=> @string_downcase).zero? } }
+    # x.report(:downcase_equal_20) { string = @string.downcase; 20.times { string == @string_downcase } }
+
+    # x.report(:casecmp_2000) { string = @string; 2000.times { (string <=> @string_downcase).zero? } }
+    # x.report(:downcase_equal_2000) { string = @string.downcase; 2000.times { string == @string_downcase } }
+
+    # x.report(:casecmp_200) { string = @string; 200.times { (string <=> @string_downcase).zero? } }
+    # x.report(:downcase_equal_200) { string = @string.downcase; 200.times { string == @string_downcase } }
+
+    x.compare!
+  end
+end
+
+benchmark('regexp-i-downcase') do
+  Benchmark.ips do |x|
+    x.config(config)
+    @string = "PathList::Matcher::CollectGitignore#file_matcher"
+    @string_downcase = "pathlist::matchers::collectgitignore#file_matcher"
+    @re_i = /\Apathlist::Matcher::collectGitignore#file_matcher\z/i
+    @re = /\Apathlist::matchers::collectgitignore#file_matcher\z/
+
+    raise unless @re_i.match?(@string)
+    raise unless @re.match?(@string_downcase)
+
+
+    x.report(:re_i_2) { string = @string; 2.times { @re_i.match?(string) } }
+    x.report(:re_downcased_2) { string = @string.downcase; 2.times { @re.match?(string) } }
+
+    x.report(:re_i_20) { string = @string; 20.times { @re_i.match?(string) } }
+    x.report(:re_downcased_20) { string = @string.downcase; 20.times { @re.match?(string) } }
+
+    x.report(:re_i_200) { string = @string; 200.times { @re_i.match?(string) } }
+    x.report(:re_downcased_200) { string = @string.downcase; 200.times { @re.match?(string) } }
+
+    x.compare!
+  end
+end
+
+benchmark('nil') do
+  Benchmark.ips do |x|
+    x.config(config)
+
+    x.report(:nil_nil_q, 'if nil.nil?; true; else; false; end')
+    x.report(:nil_not, 'if !nil; true; else; false; end')
+    x.report(:nil_unless, 'unless nil; true; else; false; end')
+    x.report(:nil_else, 'if nil; false; else; true; end')
+
+    x.report(:one_nil_q, 'if 1.nil?; true; else; false; end')
+    x.report(:one_not, 'if !1; true; else; false; end')
+    x.report(:one_unless, 'unless 1; true; else; false; end')
+    x.report(:one_else, 'if 1; false; else; true; end')
+
+    x.compare!
+  end
+end
+
+benchmark('compare-array') do
+  Benchmark.ips do |x|
+    x.config(config)
+
+    require 'set'
+
+    @array = [1,2,4,3]
+    @array_same = [4,3,1,2]
+    @array_superset = [4,3,1,2,5]
+    @array_subset = [3,1,2]
+    @array_diff_first = [0,2,4,3]
+    @array_diff_last = [4,2,1,5]
+
+    x.report(:minus_same) { @array.size == @array_same.size && (@array - @array_same).empty? }
+    # x.report(:set_same) { Set.new(@array) == Set.new(@array_same) }
+    # x.report(:sort_same) { @array.sort == @array_same.sort }
+    x.report(:all_include_same) { @array.size == @array_same.size && @array.all? { |x| @array_same.include?(x) } }
+    x.report(:all_delete_same) { @array.size == @array_same.size && array_same = @array_same.dup; @array.all? { |x| array_same.delete(x) } }
+
+    x.report(:minus_diff_first) { @array.size == @array_diff_first.size && (@array - @array_diff_first).empty? }
+    # x.report(:set_diff_first) { Set.new(@array) == Set.new(@array_diff_first) }
+    # x.report(:sort_diff_first) { @array.sort == @array_diff_first.sort }
+    x.report(:all_include_diff_first) { @array.size == @array_diff_first.size && @array.all? { |x| @array_diff_first.include?(x) } }
+    x.report(:all_delete_diff_first) { @array.size == @array_diff_first.size && array_diff_first = @array_diff_first.dup; @array.all? { |x| array_diff_first.delete(x) } }
+
+    x.report(:minus_diff_last) { @array.size == @array_diff_last.size && (@array - @array_diff_last).empty? }
+    # x.report(:set_diff_last) { Set.new(@array) == Set.new(@array_diff_last) }
+    # x.report(:sort_diff_last) { @array.sort == @array_diff_last.sort }
+    x.report(:all_include_diff_last) { @array.size == @array_diff_last.size && @array.all? { |x| @array_diff_last.include?(x) } }
+    x.report(:all_delete_diff_last) { @array.size == @array_diff_last.size && array_diff_last = @array_diff_last.dup; @array.all? { |x| array_diff_last.delete(x) } }
+
+    # x.report(:minus_superset) { @array.size == @array_superset.size && (@array - @array_superset).empty? }
+    # # x.report(:set_superset) { Set.new(@array) == Set.new(@array_superset) }
+    # # x.report(:sort_superset) { @array.sort == @array_superset.sort }
+    # x.report(:all_include_superset) { @array.size == @array_superset.size && @array.all? { |x| @array_superset.include?(x) } }
+    # x.report(:all_delete_superset) { @array.size == @array_superset.size && array_superset = @array_superset.dup; @array.all? { |x| array_superset.delete(x) } }
+
+    # x.report(:minus_subset) { @array.size == @array_subset.size && (@array - @array_subset).empty? }
+    # # x.report(:set_subset) { Set.new(@array) == Set.new(@array_subset) }
+    # # x.report(:sort_subset) { @array.sort == @array_subset.sort }
+    # x.report(:all_include_subset) { @array.size == @array_subset.size && @array.all? { |x| @array_subset.include?(x) } }
+    # x.report(:all_delete_subset) { @array.size == @array_subset.size && array_subset = @array_subset.dup; @array.all? { |x| array_subset.delete(x) } }
+
+    x.compare!
+  end
+end
+
+benchmark('symbol-equality') do
+  Benchmark.ips do |x|
+    x.config(config)
+
+    x.report(:string_eql_sym, '"my_symbol".eql?(:my_symbol)')
+    x.report(:sym_eql_string, ':my_symbol.eql?("my_symbol")')
+    x.report(:string_double_eq_sym, '"my_symbol" == :my_symbol')
+    x.report(:sym_double_eq_string, ':my_symbol == "my_symbol"')
+    x.report(:string_equal_sym, '"my_symbol".equal?(:my_symbol)')
+    x.report(:sym_equal_string, ':my_symbol.equal?("my_symbol")')
+
+    x.report(:nil_eql_sym, 'nil.eql?(:my_symbol)')
+    x.report(:sym_eql_nil, ':my_symbol.eql?(nil)')
+    x.report(:nil_double_eq_sym, 'nil == :my_symbol')
+    x.report(:sym_double_eq_nil, ':my_symbol == nil')
+    x.report(:nil_equal_sym, 'nil.equal?(:my_symbol)')
+    x.report(:sym_equal_nil, ':my_symbol.equal?(nil)')
+
+    x.report(:sym_eql_same_sym, ':my_symbol.eql?(:my_symbol)')
+    x.report(:sym_double_eq_same_sym, ':my_symbol == :my_symbol')
+    x.report(:sym_equal_same_sym, ':my_symbol.equal?(:my_symbol)')
+
+    x.report(:sym_eql_diff_sym, ':my_symbol.eql?(:other_symbol)')
+    x.report(:sym_double_eq_diff_sym, ':my_symbol == :other_symbol')
+    x.report(:sym_equal_diff_sym, ':my_symbol.equal?(:other_symbol)')
+
+
+    x.compare!
+  end
+end
+
+benchmark('if-case') do
+  Benchmark.ips do |x|
+    x.config(config)
+    x.report(
+      :case,
+      <<~RUBY
+        case rand(3)
+        when 0 then true
+        when Numeric then false
+        else true
+        end
+      RUBY
+    )
+
+    x.report(
+      :if,
+      <<~RUBY
+        if (val = rand(2)) == 0
+          true
+        elsif val.is_a?(Numeric)
+          false
+        else
+          true
+        end
+      RUBY
+    )
+
+    x.report(
+      :if_with_equal?,
+      <<~RUBY
+        if (val = rand(2)).equal?(0)
+          true
+        elsif val.is_a?(Numeric)
+          false
+        else
+          true
+        end
+      RUBY
+    )
+
+    x.compare!
+  end
+end
+
+benchmark('build-filetree-hash') do
+  Benchmark.ips do |x|
+    files = %w[
+      Gemfile
+      railties/lib/info.rb
+      railties/lib/info_controller.rb
+      railties/lib/rails/initializable.rb
+      railties/lib/rails/mailers_controller.rb
+      railties/lib/rails/paths.rb
+      railties/lib/rails/plugin/test.rb
+      railties/lib/rails/rack.rb
+      railties/lib/rails/rack/logger.rb
+      railties/lib/rails/railtie.rb
+      railties/lib/rails/railtie/configurable.rb
+      railties/lib/rails/railtie/configuration.rb
+      railties/lib/rails/ruby_version_check.rb
+      railties/lib/rails/secrets.rb
+      railties/lib/rails/source_annotation_extractor.rb
+      railties/lib/rails/tasks.rb
+      railties/lib/rails/tasks/annotations.rake
+      railties/lib/rails/tasks/dev.rake
+      railties/lib/rails/tasks/engine.rake
+      railties/lib/rails/tasks/framework.rake
+      railties/lib/rails/tasks/initializers.rake
+      railties/lib/rails/tasks/log.rake
+      railties/lib/rails/tasks/middleware.rake
+      railties/lib/rails/tasks/misc.rake
+      railties/lib/rails/tasks/restart.rake
+      railties/lib/rails/tasks/routes.rake
+      railties/lib/rails/tasks/statistics.rake
+      railties/lib/rails/tasks/tmp.rake
+      railties/lib/rails/tasks/yarn.rake
+      railties/lib/rails/tasks/zeitwerk.rake
+      railties/lib/rails/templates/layouts/application.html.erb
+      railties/lib/rails/templates/rails/info/properties.html.erb
+      railties/lib/rails/templates/rails/info/routes.html.erb
+      railties/lib/rails/templates/rails/mailers/email.html.erb
+      railties/lib/rails/templates/rails/mailers/index.html.erb
+      railties/lib/rails/templates/rails/mailers/mailer.html.erb
+      railties/lib/rails/templates/rails/welcome/index.html.erb
+      railties/lib/rails/test_help.rb
+      railties/lib/rails/test_unit/line_filtering.rb
+      railties/lib/rails/test_unit/railtie.rb
+      railties/lib/rails/test_unit/reporter.rb
+      railties/lib/rails/test_unit/runner.rb
+      railties/lib/rails/test_unit/testing.rake
+      railties/lib/rails/version.rb
+      railties/lib/rails/welcome_controller.rb
+      railties/railties.gemspec
+      railties/test/abstract_unit.rb
+      railties/test/app_loader_test.rb
+      railties/test/application/asset_debugging_test.rb
+      railties/test/application/assets_test.rb
+      railties/test/application/bin_setup_test.rb
+      railties/test/application/configuration/custom_test.rb
+      railties/test/application/configuration_test.rb
+      railties/test/application/console_test.rb
+      railties/test/application/content_security_policy_test.rb
+      railties/test/application/credentials_test.rb
+      railties/test/application/current_attributes_integration_test.rb
+      railties/test/application/dbconsole_test.rb
+      railties/test/application/feature_policy_test.rb
+      railties/test/application/generators_test.rb
+      railties/test/application/help_test.rb
+      railties/test/application/initializers/frameworks_test.rb
+      railties/test/application/initializers/hooks_test.rb
+      railties/test/application/initializers/i18n_test.rb
+      railties/test/application/initializers/load_path_test.rb
+      railties/test/application/initializers/notifications_test.rb
+      railties/test/application/integration_test_case_test.rb
+      railties/test/application/loading_test.rb
+      railties/test/application/mailer_previews_test.rb
+      railties/test/application/middleware/cache_test.rb
+      railties/test/application/middleware/cookies_test.rb
+      railties/test/application/middleware/exceptions_test.rb
+      railties/test/application/middleware/remote_ip_test.rb
+      railties/test/application/middleware/sendfile_test.rb
+      railties/test/application/middleware/session_test.rb
+      railties/test/application/middleware/static_test.rb
+      railties/test/application/middleware_test.rb
+      railties/test/application/multiple_applications_test.rb
+      railties/test/application/paths_test.rb
+      railties/test/application/per_request_digest_cache_test.rb
+      railties/test/application/rack/logger_test.rb
+      railties/test/application/rackup_test.rb
+      railties/test/application/rake/dbs_test.rb
+      railties/test/application/rake/dev_test.rb
+    ]
+
+    tree_hash_proc = -> (h,k) {
+      new_hash = {}
+      new_hash.default_proc = tree_hash_proc
+      h[k] = new_hash
+    }
+
+    require_relative '../lib/path_list/regexp_builder/merge'
+
+    x.report(:default_proc) do
+      tree = {}
+      tree.default_proc = tree_hash_proc
+      files.each do |path|
+        *dirs, filename = path.split('/')
+        if dirs.empty?
+          tree[filename] = nil
+        else
+          tree.dig(*dirs, filename)
+          tree.dig(*dirs)[filename] = nil
+        end
+      end
+      tree
+    end
+
+    x.report(:default_proc_2) do
+      tree_2 = {}
+      tree_2.default_proc = tree_hash_proc
+      files.each do |path|
+        if path.include?('/')
+          *dirs, filename = path.split('/')
+          tree_2.dig(*dirs, filename)
+          tree_2.dig(*dirs)[filename] = nil
+        else
+          tree_2[path] = nil
+        end
+      end
+      tree_2
+    end
+
+    tree = {}
+    tree.default_proc = tree_hash_proc
+    files.each do |path|
+      *dirs, filename = path.split('/')
+      if dirs.empty?
+        tree[filename] = nil
+      else
+        tree.dig(*dirs, filename)
+        tree.dig(*dirs)[filename] = nil
+      end
+    end
+    tree
+
+    tree_2 = {}
+    tree_2.default_proc = tree_hash_proc
+    files.each do |path|
+      if path.include?('/')
+        *dirs, filename = path.split('/')
+        tree_2.dig(*dirs, filename)
+        tree_2.dig(*dirs)[filename] = nil
+      else
+        tree_2[path] = nil
+      end
+    end
+    tree_2
+
+    tree_hash_proc_2 = -> (h,k) {
+      h[k] = Hash.new(&tree_hash_proc_2)
+    }
+
+    tree_3 = Hash.new(&tree_hash_proc_2)
+    files.each do |path|
+      if path.include?('/')
+        *dirs, filename = path.split('/')
+        tree_3.dig(*dirs, filename)
+        tree_3.dig(*dirs)[filename] = nil
+      else
+        tree_3[path] = nil
+      end
+    end
+    tree_3
+
+    x.report(:default_proc_3) do
+      tree_3 = Hash.new(&tree_hash_proc_2)
+      files.each do |path|
+        if path.include?('/')
+          *dirs, filename = path.split('/')
+          tree_3.dig(*dirs, filename)
+          tree_3.dig(*dirs)[filename] = nil
+        else
+          tree_3[path] = nil
+        end
+      end
+      tree_3
+    end
+
+    tree_4 = {}
+    tree_4.default_proc = tree_hash_proc
+    files.each do |path|
+      if path.include?('/')
+        *dirs, filename = path.split('/')
+        tree_4.dig(*dirs).merge!(filename => nil)
+      else
+        tree_4[path] = nil
+      end
+    end
+    tree_4
+
+    x.report(:default_proc_4) do
+      tree_4 = {}
+      tree_4.default_proc = tree_hash_proc
+      files.each do |path|
+        if path.include?('/')
+          *dirs, filename = path.split('/')
+          tree_4.dig(*dirs).merge!(filename => nil)
+        else
+          tree_4[path] = nil
+        end
+      end
+      tree_4
+    end
+
+    raise unless tree_3 == tree_2 && tree == tree_4 && tree == tree_2 && tree_2 == PathList::RegexpBuilder::Merge.merge(
+      files.map { |path| path.split('/').reverse_each.reduce(nil) { |a, e| { e => a } } }
+    )
+
+    x.report(:Merge_merge) {
+      PathList::RegexpBuilder::Merge.merge(
+        files.map { |path| path.split('/').reverse_each.reduce(nil) { |a, e| { e => a } } }
+      )
+    }
+
+    x.compare!
+  end
+end

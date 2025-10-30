@@ -19,6 +19,9 @@ FileUtils.chdir APP_ROOT do
   unless File.exist?("config/deploy.yml")
     FileUtils.cp "config/deploy.yml.sample", "config/deploy.yml"
   end
+  unless File.exist?("config/settings.local.yml")
+    FileUtils.cp "config/settings.yml", "config/settings.local.yml"
+  end
 
   unless File.exist?("config/credentials.yml.enc")
     puts "\n== Generating credentials =="

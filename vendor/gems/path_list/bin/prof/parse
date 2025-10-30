@@ -1,0 +1,21 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'ruby-prof'
+
+profile = RubyProf::Profile.new(measure_mode: RubyProf::WALL_TIME)
+# RubyProf.measure_mode = RubyProf::ALLOCATIONS
+# RubyProf.measure_mode = RubyProf::MEMORY
+
+sub_gitignore_files = `#{__dir__}/../ls '**/.gitignore'`.split("\n")
+
+profile.profile do
+  require_relative '../../lib/path_list'
+  path_list = PathList.gitignore
+  sub_gitignore_files.each do |sub_gitignore|
+    path_list.include?(sub_gitignore)
+  end
+end
+
+printer = RubyProf::GraphPrinter.new(profile)
+printer.print($stdout, min_percent: 1, sort_method: :self_time)

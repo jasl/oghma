@@ -99,6 +99,11 @@ GIT
       tsort (>= 0.2)
       zeitwerk (~> 2.6)
 
+PATH
+  remote: vendor/gems/path_list
+  specs:
+    path_list (1.0.0.rc1)
+
 GEM
   remote: https://rubygems.org/
   specs:
@@ -353,6 +358,7 @@ DEPENDENCIES
   debug
   kamal
   listen
+  path_list!
   pg (~> 1.1)
   puma (>= 5.0)
   rack-cors

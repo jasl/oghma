@@ -1,0 +1,11 @@
+/.bundle/
+/coverage/
+/pkg/
+/vendor/
+.rspec_status
+*.gem
+TODO.md
+flamegraph.svg
+flamegraph.txt
+.yardoc
+Gemfile.lock
