@@ -4,7 +4,7 @@ module Utils
       def root_path
         @root_path ||=
           begin
-            path = Pathname.new File.expand_path(Settings.fs_sync_path)
+            path = Pathname.new File.expand_path(Settings[:fs_sync_path])
             unless Dir.exist?(path)
               raise IOError, "`#{path}` does not exist or not a folder"
             end
@@ -13,15 +13,10 @@ module Utils
           end
       end
 
-      def relative_path(requested_path, skip_exist_check: false)
-        path = root_path.join(requested_path)
-        unless skip_exist_check || File.exist?(path)
-          raise ArgumentError, "`#{requested_path}` does not exist"
-        end
-
-        path = path.relative_path_from(root_path).to_path
-        if path.start_with? "."
-          path[0] = "/"
+      def relative_path(full_path)
+        path = Pathname.new(full_path).relative_path_from(root_path)
+        if path.to_path.include?("./")
+          raise ArgumentError, "`#{full_path}` must be a sub-directory of `#{root_path}`"
         end
 
         path
@@ -37,7 +32,8 @@ module Utils
       end
 
       def allow?(path)
-        ignore_checker.match?(path)
+        ignore_checker.match?(path) &&
+          (File.directory?(path) ? true : supported_extensions.include?(File.extname(path)))
       end
 
       def ignore?(path)
@@ -55,23 +51,39 @@ module Utils
           end
       end
 
-      def extensions_associations
-        @extensions_associations ||=
-          begin
-            customized_associations = (Settings[:fs_extensions_associations].to_hash || {})
-            customized_associations.transform_keys! { it.start_with?(".") ? it.to_s : "." + it.to_s }
-            customized_associations.transform_values!(&:to_sym)
-            Constants::FileSystem::EXTENSIONS_ASSOCIATIONS.merge(customized_associations).freeze
-          end
-      end
-
       def supported_extensions
-        @supported_extensions ||= extensions_associations.keys.freeze
+        @supported_extensions ||=
+          begin
+            supplemental_extensions =
+              (Settings[:fs_supplemental_extensions] || [])
+                .map { it.start_with?(".") ? it.to_s : "." + it.to_s  }
+            (Constants::FileSystem::SUPPORTED_EXTENSIONS + supplemental_extensions).freeze
+          end
       end
 
       def supported_extensions_regex
         @supported_extensions_regex ||=
           %r{\A*\.(?:#{supported_extensions.map { it[1..] }.join("|")})(/|\z)}x.freeze
+      end
+
+      def file_checksum(file_path)
+        Digest::CRC64NVMe.file(file_path).hexdigest
+      end
+
+      def path_checksum(file_path, full_path: true)
+        if full_path
+          Digest::CRC32c.hexdigest(relative_path(file_path).to_s)
+        else
+          Digest::CRC32c.hexdigest(file_path.to_s)
+        end
+      end
+
+      def mime_type(file_path)
+        Marcel::MimeType.for(Pathname.new(file_path), extension: File.extname(file_path))
+      end
+
+      def filename(file_path)
+        File.basename(file_path)
       end
     end
   end

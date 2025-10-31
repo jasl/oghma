@@ -3,13 +3,13 @@
     {
       "warning_type": "File Access",
       "warning_code": 16,
-      "fingerprint": "3c9ddffce23e99fcbf0b6b5b506be0aa7a76687ce8a9abc4c4ce488f06a6a8a9",
+      "fingerprint": "303b98b539ea2248879f2f80a42d9b992ebc21b94a4aa3e9858239076dc1595a",
       "check_name": "FileAccess",
       "message": "Parameter value used in file name",
       "file": "app/controllers/files_controller.rb",
-      "line": 18,
+      "line": 26,
       "link": "https://brakemanscanner.org/docs/warning_types/file_access/",
-      "code": "Dir[\"#{Utils::FileSystem.root_path.join(params[:requested_path].to_s)}/*\"]",
+      "code": "Dir.glob(\"#{Utils::FileSystem.root_path.join(params[:requested_path].to_s)}/*\")",
       "render_path": null,
       "location": {
         "type": "method",

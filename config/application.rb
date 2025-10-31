@@ -18,6 +18,10 @@ require "rails/test_unit/railtie"
 # you've limited to :test, :development, or :production.
 Bundler.require(*Rails.groups)
 
+# Some gems need to require manually
+require "digest/crc64_nvme"
+require "digest/crc32c"
+
 module Oghma
   class Application < Rails::Application
     # Initialize configuration defaults for originally generated Rails version.

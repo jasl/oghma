@@ -24,10 +24,18 @@ default: &default
   password: <%= ENV["DB_PASSWORD"] || "postgres" %>
   <% end %>
 
-
 development:
-  <<: *default
-  database: oghma_development
+  primary:
+    <<: *default
+    database: oghma_app_development
+  queue:
+    <<: *default
+    database: oghma_queue_development
+    migrations_paths: db/queue_migrate
+  # cable:
+  #   <<: *default
+  #   database: oghma_cable_development
+  #   migrations_paths: db/cable_migrate
 
   # The specified database role being used to connect to PostgreSQL.
   # To create additional roles in PostgreSQL see `$ createuser --help`.
@@ -78,14 +86,14 @@ test:
 production:
   primary: &primary_production
     <<: *default
-    url: "<%= ENV["DB_URL_BASE"] %>/oghma_production"
+    url: "<%= ENV["DB_URL_BASE"] %>/oghma_app_production"
   cache:
     <<: *primary_production
-    url: "<%= ENV["DB_URL_BASE"] %>/oghma_production_cache"
+    url: "<%= ENV["DB_URL_BASE"] %>/oghma_cache_production"
     migrations_paths: db/cache_migrate
   queue:
     <<: *primary_production
-    url: "<%= ENV["DB_URL_BASE"] %>/oghma_production_queue"
+    url: "<%= ENV["DB_URL_BASE"] %>/oghma_queue_production"
     migrations_paths: db/queue_migrate
   # cable:
   #   <<: *primary_production

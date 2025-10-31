@@ -52,3 +52,12 @@ gem "config"
 # .gitignore rules compatible implementation for fast ignoring unwilling files
 # Original: https://github.com/robotdana/fast_ignore/tree/dev
 gem "path_list", path: "vendor/gems/path_list"
+
+# For digesting CRC for observing files
+gem "digest-crc"
+
+# Detect file type
+gem "marcel"
+
+# ActiveJob dashboard
+# gem "mission_control-jobs"

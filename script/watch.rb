@@ -16,6 +16,12 @@ parser.on(
   ENV["RAILS_ENV"] = v
 end
 parser.on(
+  "--dry-run",
+  "Dry run"
+) do
+  ENV["DRY_RUN"] = "1"
+end
+parser.on(
   "--verbose",
   "Print extended logs"
 ) do
@@ -33,6 +39,7 @@ _ret = parser.parse!
 require_relative "../config/environment"
 
 FORCE_POLLING = Utils::Cli.true? ENV["FORCE_POLLING"]
+DRY_RUN = Utils::Cli.true? ENV["DRY_RUN"]
 VERBOSE = Utils::Cli.true? ENV["VERBOSE"]
 
 require "listen"
@@ -51,20 +58,22 @@ listener = Listen.to(
 ) do |modified, added, removed|
   added = added.select { Utils::FileSystem.allow?(it) }
   if added.any?
-    # TODO
     puts "Added: #{added}"
+    jobs = added.map { IndexFileJob.new(it) }
+    ActiveJob.perform_all_later(jobs) unless DRY_RUN
   end
 
   removed = removed.select { Utils::FileSystem.allow?(it) }
   if removed.any?
-    # TODO
     puts "Removed: #{removed}"
+    # TODO:
   end
 
   modified = modified.select { Utils::FileSystem.allow?(it) }
   if modified.any?
-    # TODO
     puts "Modified: #{modified}"
+    jobs = modified.map { IndexFileJob.new(it) }
+    ActiveJob.perform_all_later(jobs) unless DRY_RUN
   end
 end
 

@@ -10,8 +10,21 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.2].define(version: 0) do
+ActiveRecord::Schema[8.2].define(version: 2025_10_30_222445) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
+  create_table "indexed_files", force: :cascade do |t|
+    t.bigint "byte_size", null: false
+    t.string "checksum", null: false
+    t.string "content_type", null: false, comment: "Detected media type"
+    t.datetime "created_at", null: false
+    t.string "filename", null: false, comment: "original filename"
+    t.string "key", null: false, comment: "quick identifier, calculated by `storage_path`"
+    t.datetime "modified_at", precision: nil, null: false, comment: "original file's `mtime` attribute"
+    t.string "storage_path", null: false, comment: "original storage path (relative to the root)"
+    t.datetime "updated_at", null: false
+    t.index ["key"], name: "index_indexed_files_on_key"
+    t.index ["storage_path"], name: "index_indexed_files_on_storage_path", unique: true
+  end
 end

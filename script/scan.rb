@@ -16,6 +16,18 @@ parser.on(
   ENV["RAILS_ENV"] = v
 end
 parser.on(
+  "--force-reindex",
+  "Force index even there is no change"
+) do
+  ENV["FORCE_REINDEX"] = "1"
+end
+parser.on(
+  "--dry-run",
+  "Dry run"
+) do
+  ENV["DRY_RUN"] = "1"
+end
+parser.on(
   "--verbose",
   "Print extended logs"
 ) do
@@ -26,17 +38,18 @@ _ret = parser.parse!
 # Load Rails environment
 require_relative "../config/environment"
 
-FORCE_POLLING = Utils::Cli.true? ENV["FORCE_POLLING"]
+FORCE_REINDEX = Utils::Cli.true? ENV["FORCE_REINDEX"]
+DRY_RUN = Utils::Cli.true? ENV["DRY_RUN"]
 VERBOSE = Utils::Cli.true? ENV["VERBOSE"]
 
-retrieved_files = []
-
 root_path = Utils::FileSystem.root_path.to_path
-dir_retrieve_stacks = [ root_path ]
+dir_retrieve_stacks = [root_path]
 loop do
   break if dir_retrieve_stacks.empty?
 
   current_path = dir_retrieve_stacks.pop
+
+  scanned_files = []
   Dir["#{current_path}/*"].each do |path|
     unless Utils::FileSystem.allow? path
       next
@@ -50,10 +63,25 @@ loop do
       next
     end
 
-    if File.extname(path).in?(Utils::FileSystem.extensions_associations)
-      retrieved_files << path
+    scanned_files << path
+  end
+
+  scanned_files.each_slice(32) do |sliced_scanned_files|
+    indexed_files = IndexedFile.where(
+      key: sliced_scanned_files.map { Utils::FileSystem.path_checksum(it) }
+    ).to_a
+
+    jobs = []
+    sliced_scanned_files.select do |path|
+      indexed = indexed_files.find { it.absolute_full_path == path }
+      if indexed.blank?
+        puts "New: #{Utils::FileSystem.relative_path(path)}"
+        jobs << IndexFileJob.new(path)
+      elsif FORCE_REINDEX || indexed.modified_at.to_i != File.mtime(path).to_i # || entry.checksum != Utils::FileSystem.checksum(path)
+        puts "Modified: #{indexed.storage_path}"
+        jobs << IndexFileJob.new(path)
+      end
     end
+    ActiveJob.perform_all_later(jobs) if jobs.any? && !DRY_RUN
   end
 end
-
-puts retrieved_files

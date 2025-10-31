@@ -1,20 +1,20 @@
 module Constants
   module FileSystem
-    # Controlled by the app
-    EXTENSIONS_ASSOCIATIONS = {
+    SUPPORTED_EXTENSIONS = [
+      # Plain texts
+      ".txt",
+      ".md",
       # Documents
-      ".txt" => :plain,
-      ".md" => :plain,
-      ".docx" => :word,
-      ".pdf" => :pdf,
+      ".docx",
+      ".pdf",
       # Images
-      ".jpeg" => :jpeg,
-      ".jpg" => :jpeg,
-      ".png" => :png,
+      ".jpeg",
+      ".jpg",
+      ".png",
       # Videos
-      ".mkv" => :video,
-      ".mp4" => :video,
-    }.freeze
+      ".mkv",
+      ".mp4",
+    ].freeze
 
     GLOBAL_IGNORE_PATTERNS = %w[
       *~
